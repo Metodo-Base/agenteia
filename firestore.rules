@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: leads
+    // Document ID: auto-generated
+    // Fields:
+    //   - nome: string (required, 1-100 chars)
+    //   - email: string (required, valid email format)
+    //   - whatsapp: string (required, 8-20 chars)
+    //   - createdAt: timestamp (required, server time)
+    //
+    // Collection: nichos
+    // Document ID: auto-generated
+    // Fields:
+    //   - nome_nicho: string (required)
+    //   - prompt_inicial: string (required)
+    //   - slug: string (required, lowercase, no spaces)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((request.auth.token.email == "natanvileladesouza@gmail.com" && request.auth.token.email_verified == true) ||
+         (request.auth.token.email == "ieqmur@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidLead(data) {
+      return hasRequiredFields(['nome', 'email', 'whatsapp', 'createdAt']) &&
+             hasOnlyAllowedFields(['nome', 'email', 'whatsapp', 'createdAt']) &&
+             data.nome is string && data.nome.size() >= 1 && data.nome.size() <= 100 &&
+             isValidEmail(data.email) &&
+             data.whatsapp is string && data.whatsapp.size() >= 8 && data.whatsapp.size() <= 20 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidNicho(data) {
+      return hasRequiredFields(['nome_nicho', 'prompt_inicial', 'slug']) &&
+             hasOnlyAllowedFields(['nome_nicho', 'prompt_inicial', 'slug']) &&
+             data.nome_nicho is string && data.nome_nicho.size() > 0 &&
+             data.prompt_inicial is string && data.prompt_inicial.size() > 0 &&
+             data.slug is string && data.slug.matches("^[a-z0-9-]+$");
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /leads/{leadId} {
+      // Allow anyone to submit a lead, but validate the data strictly
+      allow create: if isValidLead(request.resource.data);
+      
+      // Only admins can read or manage leads
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /nichos/{nichoId} {
+      // Allow anyone to read niches
+      allow read: if true;
+      // Only admins can manage niches
+      allow create, update: if isAdmin() && isValidNicho(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

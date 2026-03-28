@@ -1,0 +1,5 @@
+{
+  "name": "AI Agent",
+  "description": "Landing page para serviços de agentes de IA integrados ao WhatsApp para agendamento e qualificação de leads.",
+  "requestFramePermissions": []
+}
